@@ -6,6 +6,8 @@ import http.server.processors.ServletProcessor;
 import myapp.ServletsMap;
 import http.server.servlet.AbstractServletsMap;
 import java.net.Socket;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.net.ServerSocket;
 import java.net.InetAddress;
 import java.io.InputStream;
@@ -23,12 +25,16 @@ public class HttpServer {
     // shutdown command
     private static final String SHUTDOWN_COMMAND = "/SHUTDOWN";
     private static final boolean SHUTDOWN = true;
+    
+    private static final Executor executor = Executors.newFixedThreadPool(10);
 
     private final AbstractServletsMap servletsMap;
     
     public HttpServer(AbstractServletsMap servletsMap) {
         this.servletsMap = servletsMap;
     }
+    
+    private Boolean isShutDown = !SHUTDOWN;
     
     public void await() throws IOException {
         ServerSocket serverSocket = null;
@@ -42,12 +48,26 @@ public class HttpServer {
         
         System.out.println("Server is waiting for request at port: " + port);
         servletsMap.callInit();
-        boolean isShutDown = !SHUTDOWN;
+        
         // Loop waiting for a request
         while (!isShutDown) {
             try {
                 Socket socket = serverSocket.accept();
-                isShutDown = processRequest(socket);
+                
+                executor.execute(new Runnable() {
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						try {
+							boolean _isShutDown = processRequest(socket);
+							synchronized(isShutDown) {
+								isShutDown = _isShutDown;
+							}
+						} catch(Exception e) {
+							e.printStackTrace();
+						}
+					}
+				});
 
             } catch (Exception e) {
                 e.printStackTrace();
