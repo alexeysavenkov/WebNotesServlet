@@ -10,13 +10,28 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
 
+import com.mongodb.BasicDBObject;
+import com.mongodb.DB;
+import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
+import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
+
 public class WebNotesServlet extends AbstractServlet {
 
-    List<String> notes = new ArrayList<>();
+	private DBCollection notesCollection;
 
     @Override
     public void init() {
         System.out.println("---from Servlet init---");
+        
+        Mongo mongo = new Mongo();
+        DB db = mongo.getDB("notesDB");
+        notesCollection = db.getCollection("notes");
+        if (notesCollection == null) {
+            notesCollection = db.createCollection("notes", null);
+        }
     }
 
     @Override
@@ -25,13 +40,22 @@ public class WebNotesServlet extends AbstractServlet {
         
         HttpRequest httpRequest = (HttpRequest)request;
         if(httpRequest.getMethod().equals("POST")) {
-        	String note = httpRequest.getParameter("note");
-        	if(note != null && note.length() > 0) {
-        		notes.add(note);
+        	String noteText = httpRequest.getParameter("note");
+        	if(noteText != null && noteText.length() > 0) {
+        		notesCollection.insert(new BasicDBObject("text", noteText));
         	}
         }
         
         StringBuilder builder = new StringBuilder();
+        
+        
+        List<String> notes = new ArrayList<>();
+        DBCursor cursor = notesCollection.find();
+        while (cursor.hasNext()) {
+            DBObject dbo = cursor.next();
+            notes.add((String)dbo.get("text"));
+        }
+        
         
         if(notes.isEmpty()) {
         	builder.append("<h2>No saved notes yet</h2>");
