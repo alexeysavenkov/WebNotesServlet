@@ -18,9 +18,11 @@ import com.mongodb.DBObject;
 import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
 
+import beans.Book;
+
 public class WebNotesServlet extends AbstractServlet {
 
-	private DBCollection notesCollection;
+	public static DBCollection booksCollection;
 
     @Override
     public void init() {
@@ -28,9 +30,9 @@ public class WebNotesServlet extends AbstractServlet {
         
         Mongo mongo = new Mongo();
         DB db = mongo.getDB("notesDB");
-        notesCollection = db.getCollection("notes");
-        if (notesCollection == null) {
-            notesCollection = db.createCollection("notes", null);
+        booksCollection = db.getCollection("books");
+        if (booksCollection == null) {
+            booksCollection = db.createCollection("books", null);
         }
     }
 
@@ -40,38 +42,83 @@ public class WebNotesServlet extends AbstractServlet {
         
         HttpRequest httpRequest = (HttpRequest)request;
         if(httpRequest.getMethod().equals("POST")) {
-        	String noteText = httpRequest.getParameter("note");
-        	if(noteText != null && noteText.length() > 0) {
-        		notesCollection.insert(new BasicDBObject("text", noteText));
+        	switch(httpRequest.getParameter("action")) {
+        	case "add":
+	        	Book book = Book.fromHttpRequest(httpRequest);
+	        	if(book != null) {
+	        		booksCollection.insert(book.toDBObject());
+	        	}
+	        	break;
+        	case "delete":
+        		booksCollection.remove(new BasicDBObject("name", httpRequest.getParameter("name")));
+        		break;
+        	case "modify":
+        		book = Book.fromDBObject(booksCollection.find(new BasicDBObject("name", httpRequest.getParameter("name"))).next());
+        		((HttpResponse)response).sendHTML(("<form action='/servlet/WebNotesServlet' method='post'>" +
+                		"<input type='hidden' name='action' value='modify_approve'>" + 
+        				"<input type='hidden' name='old_name' value='" + book.getName() + "'>" +
+        			"Name: <input type='text' name='name' value='" + book.getName() + "'><br>" + 
+        			"Year: <input type='text' name='year' value='" + book.getYear() + "'><br>" + 
+        			"Language: <input type='text' name='language' value='" + book.getLanguage() + "'><br>" + 
+        			"Author: <input type='text' name='author' value='" + book.getAuthor() + "'><br>" + 
+        			"<input type='submit' value='Submit'>" +
+        			"</form>"));
+        		return;
+        	case "modify_approve":
+        		book = Book.fromHttpRequest(httpRequest);
+        		if(book != null) {
+        			booksCollection.remove(new BasicDBObject("name", httpRequest.getParameter("old_name")));
+	        		booksCollection.insert(book.toDBObject());
+	        	}
+        		break;
         	}
         }
         
         StringBuilder builder = new StringBuilder();
         
         
-        List<String> notes = new ArrayList<>();
-        DBCursor cursor = notesCollection.find();
+        List<Book> books = new ArrayList<>();
+        DBCursor cursor = booksCollection.find();
         while (cursor.hasNext()) {
             DBObject dbo = cursor.next();
-            notes.add((String)dbo.get("text"));
+            Book book = Book.fromDBObject(dbo);
+            books.add(book);
         }
         
         
-        if(notes.isEmpty()) {
-        	builder.append("<h2>No saved notes yet</h2>");
+        if(books.isEmpty()) {
+        	builder.append("<h2>No books yet</h2>");
         } else {
-        	builder.append("<h2>Saved notes: </h2>");
-        	builder.append("<ul>");
-        	for(String note : notes) {
-        		builder.append("<li>" + note + "</li>");
+        	builder.append("<h2>Books: </h2>");
+        	builder.append("<table>");
+        	builder.append("<tr><th>Name</th><th>Year</th><th>Language</th><th>Author</th><th></th><th></th></tr>");
+        	for(Book book : books) {
+        		builder.append("<tr>");
+        		builder.append("<td>" + book.getName() + "</td>");
+        		builder.append("<td>" + book.getYear() + "</td>");
+        		builder.append("<td>" + book.getLanguage() + "</td>");
+        		builder.append("<td>" + book.getAuthor() + "</td>");
+        		builder.append("<td><form action='/servlet/WebNotesServlet' method='post'>"+
+        					"<input type='hidden' name='action' value='delete'>" +
+        					"<input type='hidden' name='name' value='" + book.getName() + "'>" +
+        					"<input type='submit' value='delete'></form>");
+        		builder.append("<td><form action='/servlet/WebNotesServlet' method='post'>"+
+    					"<input type='hidden' name='action' value='modify'>" +
+    					"<input type='hidden' name='name' value='" + book.getName() + "'>" +
+    					"<input type='submit' value='modify'></form>");
+        		builder.append("</tr>");
         	}
-        	builder.append("</ul>");
+        	builder.append("</table>");
         }
         
         builder.append("<h2>Add new note</h2>");
         
-        builder.append("<form action='servlet/WebNotesServlet' method='post'>" +
-			"Note text: <input type='text' name='note'><br>" + 
+        builder.append("<form action='/servlet/WebNotesServlet' method='post'>" +
+        		"<input type='hidden' name='action' value='add'>" + 
+			"Name: <input type='text' name='name'><br>" + 
+			"Year: <input type='text' name='year'><br>" + 
+			"Language: <input type='text' name='language'><br>" + 
+			"Author: <input type='text' name='author'><br>" + 
 			"<input type='submit' value='Submit'>" +
 			"</form>");
 
