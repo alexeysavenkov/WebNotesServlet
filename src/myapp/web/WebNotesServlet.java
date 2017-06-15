@@ -111,7 +111,7 @@ public class WebNotesServlet extends AbstractServlet {
         	builder.append("</table>");
         }
         
-        builder.append("<h2>Add new note</h2>");
+        builder.append("<h2>Add new book</h2>");
         
         builder.append("<form action='/servlet/WebNotesServlet' method='post'>" +
         		"<input type='hidden' name='action' value='add'>" + 
